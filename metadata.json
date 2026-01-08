@@ -1,0 +1,26 @@
+{
+  "name": "NEURO.OS",
+  "description": "NEURO.OS (Medical + Dev Edition). Visual Identity: 'MRI Scan' / Sterile Laboratory. Palette: Void Black, Neon Cyan, Surgical Green, Med Blue. Designed for FREITAS.LAB content.",
+  "design_system": {
+    "philosophy": "Sterile Dark Mode / MRI Aesthetic. Clinical precision, cold tones, high-contrast data visualization.",
+    "palette": {
+      "void_black": "#030305 (Primary Background - Clinical Dark)",
+      "neon_cyan": "#00f0ff (Primary Action / Interface)",
+      "med_blue": "#3b82f6 (Ambient Sterile Light)",
+      "surgical_green": "#00ff9d (Confirmation / Highlights)",
+      "glass_panel": "rgba(15, 23, 42, 0.95)",
+      "tech_grid": "rgba(255, 255, 255, 0.03)"
+    },
+    "typography": {
+      "headers": "Orbitron (Weights: 700, 900) - Uppercase short words only.",
+      "body": "Inter (Weights: 300, 400) - Maximum legibility.",
+      "hud_data": "JetBrains Mono (Weights: 400) - Data logging aesthetic."
+    },
+    "ui_mechanics": {
+      "hud_overlays": "Bio-metric indicators and crosshairs.",
+      "tech_grid": "Grid architecture resembling medical imaging sheets.",
+      "render_engine": "html2canvas 3.0x scale with geometricPrecision."
+    }
+  },
+  "requestFramePermissions": []
+}
