@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NEURO.OS V4.2 | FREITAS.LAB</title>
+    <title>NEURO.OS V4.3 | FREITAS.LAB</title>
     
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -113,7 +113,8 @@
     <script type="text/babel" data-type="module">
         import { GoogleGenAI } from "@google/genai";
 
-        const { useState, useEffect, useRef, useLayoutEffect, useMemo } = React;
+        // Added useDeferredValue to destructuring
+        const { useState, useEffect, useRef, useLayoutEffect, useMemo, useDeferredValue } = React;
 
         // --- ICONS (Lucide) ---
         const IconDownload = ({ size = 20 }) => (
@@ -161,7 +162,7 @@
 
         // --- CONSTANTS ---
         const CTA_IMAGE_1 = "https://i.ibb.co/J9yfXbN/IMG-5157.jpg";
-        const CTA_IMAGE_2 = "https://i.ibb.co/yBSbM35F/Gemini-Generated-Image-jxdl30jxdl30jxdl.png";
+        const CTA_IMAGE_2 = "https://i.ibb.co/HfBmT7FM/IMG-5545.jpg";
 
         const FORMATS = {
             carousel: { width: 1080, height: 1350, label: 'POST 4:5' },
@@ -184,41 +185,43 @@
          * Advanced JSON Interpreter
          */
         const smartProcessSlide = (raw) => {
+            // FIX: Force properties to strings to avoid rendering errors in Inputs
+            const safeString = (val) => val === undefined || val === null ? undefined : String(val);
+
             let data = {
-                title: raw.title || raw.header || raw.headline || raw.topic || 'Untitled',
+                title: safeString(raw.title || raw.header || raw.headline || raw.topic) || 'Untitled',
                 type: raw.type, 
                 image: raw.image || raw.bg || raw.background || raw.img,
-                highlight: raw.highlight || raw.tag || raw.label || raw.category,
-                subtitle: raw.subtitle || raw.intro || raw.caption || raw.sub,
-                description: raw.description || raw.desc,
-                buttonText: raw.buttonText || raw.cta || raw.action,
+                highlight: safeString(raw.highlight || raw.tag || raw.label || raw.category),
+                subtitle: safeString(raw.subtitle || raw.intro || raw.caption || raw.sub),
+                description: safeString(raw.description || raw.desc),
+                buttonText: safeString(raw.buttonText || raw.cta || raw.action),
             };
 
             let rawBody = raw.body || raw.content || raw.text || raw.message || raw.list || raw.items || [];
             
             const splitInlineLists = (text) => {
-                if (!text) return "";
-                return text
+                const sText = String(text || "");
+                if (!sText) return "";
+                return sText
                     .replace(/([^\n])\s+(\d+\.)\s/g, '$1\n$2 ') 
                     .replace(/([^\n])\s+([•\-\*])\s/g, '$1\n$2 ');
             };
 
             if (Array.isArray(rawBody)) {
-                data.items = rawBody;
+                data.items = rawBody.map(String); // Ensure items are strings
                 data.body = rawBody.join('\n');
-            } else if (typeof rawBody === 'string') {
+            } else {
                 const formattedBody = splitInlineLists(rawBody);
                 data.body = formattedBody;
                 const isListLike = /(?:^|\n)(?:\d+\.|[•\-\*])\s/.test(formattedBody);
                 if (isListLike) {
                     data.items = formattedBody.split('\n').filter(l => l.trim().length > 0);
                 }
-            } else {
-                data.body = "";
             }
 
             if (raw.number || raw.stat || raw.value || raw.metric) {
-                data.number = raw.number || raw.stat || raw.value || raw.metric;
+                data.number = safeString(raw.number || raw.stat || raw.value || raw.metric);
                 if (!data.type) data.type = 'big-number'; 
             }
 
@@ -295,7 +298,7 @@
             // NEW: Auto-formatting for aesthetics
             const formatDisplayText = (text) => {
                 if (!text) return "";
-                return text
+                return String(text)
                     .replace(/([^\n])\s+(\d+\.)\s/g, '$1\n$2 ') 
                     .replace(/([^\n])\s+([•\-\*])\s/g, '$1\n$2 ')
                     // Magic Rule: Split sentences (dot followed by space and Capital letter)
@@ -617,6 +620,35 @@
             );
         };
 
+        // --- COMPONENTS EXTRACTED TO FIX EDITING BUGS ---
+        const InputField = ({ label, value, field, placeholder, onChange }) => (
+            <div className="space-y-2">
+                <label className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">{label}</label>
+                <input 
+                    type="text" 
+                    value={value !== undefined && value !== null ? value : ''} 
+                    onChange={(e) => onChange(field, e.target.value)} 
+                    className="w-full bg-[#111] border border-white/10 rounded-none p-3 text-white focus:border-neonCyan transition-colors font-inter" 
+                    placeholder={placeholder || "..."}
+                    autoComplete="off"
+                />
+            </div>
+        );
+
+        const TextAreaField = ({ label, value, field, placeholder, rows = 6, onChange }) => (
+            <div className="space-y-2">
+                <label className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">{label}</label>
+                <textarea 
+                    rows={rows} 
+                    value={value !== undefined && value !== null ? value : ''} 
+                    onChange={(e) => onChange(field, e.target.value)} 
+                    className="w-full bg-[#111] border border-white/10 rounded-none p-3 text-white focus:border-neonCyan transition-colors font-inter leading-relaxed" 
+                    placeholder={placeholder || "..."}
+                    autoComplete="off" 
+                />
+            </div>
+        );
+
         const EditorForm = ({ slide, onChange, onGenerateAI, isGenerating }) => {
             const safeType = normalizeType(slide.type);
 
@@ -629,75 +661,61 @@
                 handleChange('image', next);
             };
 
-            const InputField = ({ label, value, field, placeholder }) => (
-                <div className="space-y-2">
-                    <label className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">{label}</label>
-                    <input type="text" value={value || ''} onChange={(e) => handleChange(field, e.target.value)} className="w-full bg-[#111] border border-white/10 rounded-none p-3 text-white focus:border-neonCyan transition-colors font-inter" placeholder={placeholder || "..."} />
-                </div>
-            );
-
-            const TextAreaField = ({ label, value, field, placeholder, rows = 6 }) => (
-                <div className="space-y-2">
-                    <label className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">{label}</label>
-                    <textarea rows={rows} value={value || ''} onChange={(e) => handleChange(field, e.target.value)} className="w-full bg-[#111] border border-white/10 rounded-none p-3 text-white focus:border-neonCyan transition-colors font-inter leading-relaxed" placeholder={placeholder || "..."} />
-                </div>
-            );
-
             return (
                 <div className="flex flex-col gap-6 p-1">
                     <div className="space-y-2">
                         <label className="text-[10px] text-neonCyan font-mono tracking-widest uppercase">
-                            Slide Type {safeType === 'cta' && '(LOCKED)'}
+                            Slide Type
                         </label>
-                        <select value={safeType} onChange={(e) => handleChange('type', e.target.value)} disabled={safeType === 'cta'} className={`w-full bg-[#111] border border-white/10 rounded-none p-3 text-white focus:border-neonCyan transition-colors font-mono text-sm ${safeType === 'cta' ? 'opacity-50 cursor-not-allowed text-gray-500' : ''}`}>
+                        <select value={safeType} onChange={(e) => handleChange('type', e.target.value)} className="w-full bg-[#111] border border-white/10 rounded-none p-3 text-white focus:border-neonCyan transition-colors font-mono text-sm">
                             <option value="cover">COVER (INTRO)</option>
                             <option value="content">CONTENT (TEXT)</option>
                             <option value="story-digest">STORY DIGEST (EXCLUSIVE)</option>
                             <option value="big-number">BIG NUMBER (STAT)</option>
                             <option value="checklist">CHECKLIST (LIST)</option>
-                            <option value="cta">CTA (OUTRO - LOCKED)</option>
+                            <option value="cta">CTA (OUTRO)</option>
                         </select>
                     </div>
-                    <InputField label="Title" field="title" value={slide.title} placeholder="Main Headline" />
+                    <InputField label="Title" field="title" value={slide.title} placeholder="Main Headline" onChange={handleChange} />
 
                     {safeType === 'cover' && (
                         <>
-                            <TextAreaField label="Subtitle" field="subtitle" value={slide.subtitle} placeholder="Introductory text or subtitle..." />
-                            <InputField label="Highlight / Tag" field="highlight" value={slide.highlight} placeholder="e.g. 2024 EDITION" />
+                            <TextAreaField label="Subtitle" field="subtitle" value={slide.subtitle} placeholder="Introductory text or subtitle..." onChange={handleChange} />
+                            <InputField label="Highlight / Tag" field="highlight" value={slide.highlight} placeholder="e.g. 2024 EDITION" onChange={handleChange} />
                         </>
                     )}
 
                     {safeType === 'content' && (
                         <>
-                            <TextAreaField label="Body Text" field="body" value={slide.body} placeholder="Main content paragraph..." />
-                            <InputField label="Highlight Box" field="highlight" value={slide.highlight} placeholder="Key takeaway..." />
+                            <TextAreaField label="Body Text" field="body" value={slide.body} placeholder="Main content paragraph..." onChange={handleChange} />
+                            <InputField label="Highlight Box" field="highlight" value={slide.highlight} placeholder="Key takeaway..." onChange={handleChange} />
                         </>
                     )}
 
                     {safeType === 'story-digest' && (
                         <>
-                            <TextAreaField label="Intro / Subtitle" field="subtitle" value={slide.subtitle} placeholder="Context about the topic..." />
-                            <TextAreaField label="Key Points (One per line)" field="body" value={slide.body} placeholder="• Point 1&#10;• Point 2&#10;• Point 3" />
-                            <InputField label="Top Tag / Category" field="highlight" value={slide.highlight} placeholder="e.g. NEW FEATURE" />
-                            <InputField label="Bottom CTA" field="buttonText" value={slide.buttonText} placeholder="e.g. LINK IN BIO" />
+                            <TextAreaField label="Intro / Subtitle" field="subtitle" value={slide.subtitle} placeholder="Context about the topic..." onChange={handleChange} />
+                            <TextAreaField label="Key Points (One per line)" field="body" value={slide.body} placeholder="• Point 1&#10;• Point 2&#10;• Point 3" onChange={handleChange} />
+                            <InputField label="Top Tag / Category" field="highlight" value={slide.highlight} placeholder="e.g. NEW FEATURE" onChange={handleChange} />
+                            <InputField label="Bottom CTA" field="buttonText" value={slide.buttonText} placeholder="e.g. LINK IN BIO" onChange={handleChange} />
                         </>
                     )}
 
                     {safeType === 'big-number' && (
                         <>
-                            <InputField label="The Number (Big Text)" field="number" value={slide.number} placeholder="e.g. +50%" />
-                            <TextAreaField label="Description" field="description" value={slide.description} placeholder="Explain the metric..." />
+                            <InputField label="The Number (Big Text)" field="number" value={slide.number} placeholder="e.g. +50%" onChange={handleChange} />
+                            <TextAreaField label="Description" field="description" value={slide.description} placeholder="Explain the metric..." onChange={handleChange} />
                         </>
                     )}
 
                     {safeType === 'checklist' && (
-                        <TextAreaField label="Checklist Items (One per line)" field="body" value={slide.body} placeholder="• Item 1&#10;• Item 2&#10;• Item 3" />
+                        <TextAreaField label="Checklist Items (One per line)" field="body" value={slide.body} placeholder="• Item 1&#10;• Item 2&#10;• Item 3" onChange={handleChange} />
                     )}
 
                     {safeType === 'cta' && (
                         <>
-                            <TextAreaField label="Subtitle / Message" field="subtitle" value={slide.subtitle} placeholder="Closing message..." />
-                            <InputField label="Button Text" field="buttonText" value={slide.buttonText} placeholder="e.g. SUBSCRIBE" />
+                            <TextAreaField label="Subtitle / Message" field="subtitle" value={slide.subtitle} placeholder="Closing message..." onChange={handleChange} />
+                            <InputField label="Button Text" field="buttonText" value={slide.buttonText} placeholder="e.g. SUBSCRIBE" onChange={handleChange} />
                              <div className="space-y-2">
                                  <label className="text-[10px] text-neonCyan font-mono tracking-widest uppercase">LOCKED ASSET (VARIANT SELECTOR)</label>
                                  <div className="p-3 bg-neonCyan/5 border border-neonCyan/20 flex items-center justify-between gap-4">
@@ -721,7 +739,7 @@
                     <div className="space-y-2">
                              <label className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">Background Image</label>
                              <div className="flex gap-2">
-                                <input type="text" value={slide.image || ''} onChange={(e) => handleChange('image', e.target.value)} className="flex-grow bg-[#111] border border-white/10 rounded-none p-3 text-white focus:border-neonCyan transition-colors font-inter" placeholder="https://... or Generate AI" />
+                                <input type="text" value={slide.image || ''} onChange={(e) => handleChange('image', e.target.value)} className="flex-grow bg-[#111] border border-white/10 rounded-none p-3 text-white focus:border-neonCyan transition-colors font-inter" placeholder="https://... or Generate AI" autoComplete="off" />
                                 <button onClick={onGenerateAI} disabled={isGenerating} className={`px-4 flex items-center justify-center gap-2 font-mono text-[10px] font-bold tracking-widest uppercase border border-neonCyan/50 transition-all ${isGenerating ? 'bg-gray-800 text-gray-500 cursor-wait' : 'bg-neonCyan/10 text-neonCyan hover:bg-neonCyan hover:text-black'}`} title="Generate High Quality Background">
                                     {isGenerating ? <div className="w-4 h-4 border-2 border-neonCyan border-t-transparent rounded-full loader-spin"></div> : <IconSparkles size={16} />}
                                     {isGenerating ? 'GEN...' : 'AI GEN'}
@@ -738,15 +756,23 @@
 
             const handleLoad = () => {
                 try {
-                    const json = JSON.parse(text);
+                    // FIX: Strip Markdown code blocks (common from AI)
+                    let cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                    let json = JSON.parse(cleanText);
+                    
+                    // FIX: Handle single object import
+                    if (!Array.isArray(json) && typeof json === 'object' && json !== null) {
+                        json = [json];
+                    }
+
                     if (Array.isArray(json)) {
                         onLoad(json);
                         onClose();
                     } else {
-                        alert('JSON must be an array of slides.');
+                        alert('JSON Error: Input must be an array of slide objects.');
                     }
                 } catch (e) {
-                    alert('Invalid JSON format.');
+                    alert('JSON Parsing Error: Please check the syntax. ' + e.message);
                 }
             };
 
@@ -781,6 +807,9 @@
             const [copySuccess, setCopySuccess] = useState(false);
             const offScreenRef = useRef(null);
 
+            // FIX: Use deferred value for the preview to prevent typing lag
+            const deferredSlide = useDeferredValue(slides[currentIndex]);
+
             const addSlide = () => {
                 const newSlide = { type: 'content', title: 'New Slide', body: 'Edit this content...' };
                 const newSlides = [...slides];
@@ -795,9 +824,6 @@
 
             const deleteSlide = () => {
                 if (slides.length <= 1) return alert("Cannot delete the last slide.");
-                if (normalizeType(slides[currentIndex].type) === 'cta') {
-                    return alert("SYSTEM PROTECTED: The closing slide cannot be removed.");
-                }
                 const newSlides = slides.filter((_, i) => i !== currentIndex);
                 setSlides(newSlides);
                 if (currentIndex >= newSlides.length) setCurrentIndex(newSlides.length - 1);
@@ -949,7 +975,7 @@
                     <header className="h-14 border-b border-white/10 glass-panel flex items-center justify-between px-6 z-30 shrink-0">
                         <div className="flex items-center gap-3">
                             <div className="w-2 h-2 bg-neonCyan shadow-[0_0_10px_#00f0ff]"></div>
-                            <h1 className="text-sm font-mono font-bold tracking-widest text-gray-300">NEURO.OS <span className="text-neonCyan">V4.1</span></h1>
+                            <h1 className="text-sm font-mono font-bold tracking-widest text-gray-300">NEURO.OS <span className="text-neonCyan">V4.3</span></h1>
                         </div>
                         <div className="flex items-center gap-4">
                             <div className="flex bg-[#111] rounded-sm p-[2px] border border-white/10 mr-2">
@@ -989,13 +1015,13 @@
                                 <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
                                 LIVE PREVIEW: {FORMATS[activeFormat].label}
                             </div>
-                            <ScaledPreview slide={slides[currentIndex]} format={activeFormat} />
+                            <ScaledPreview slide={deferredSlide} format={activeFormat} />
                         </div>
                     </main>
 
                     <div style={{ position: 'fixed', top: 0, left: '-9999px', width: `${FORMATS[activeFormat].width}px`, height: `${FORMATS[activeFormat].height}px`, zIndex: -1, pointerEvents: 'none', visibility: 'visible' }}>
                         <div ref={offScreenRef} style={{ width: '100%', height: '100%' }}>
-                            <SlideRenderer data={slides[currentIndex]} width={`${FORMATS[activeFormat].width}px`} height={`${FORMATS[activeFormat].height}px`} />
+                            <SlideRenderer data={deferredSlide} width={`${FORMATS[activeFormat].width}px`} height={`${FORMATS[activeFormat].height}px`} />
                         </div>
                     </div>
                     <JsonModal isOpen={showJson} onClose={() => setShowJson(false)} onLoad={handleJsonLoad} />
